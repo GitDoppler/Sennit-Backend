@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 
 
@@ -32,6 +33,14 @@ public class User {
 
     @Column(name="created_at")
     private LocalDateTime createdAt;
+
+    @ManyToMany
+    @JoinTable(
+            name = "user_group",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "group_id")
+    )
+    private List<Group> listGroups;
 
     @PrePersist
     protected void onCreate() {
@@ -76,6 +85,14 @@ public class User {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public List<Group> getListGroups() {
+        return listGroups;
+    }
+
+    public void setListGroups(List<Group> listGroups) {
+        this.listGroups = listGroups;
     }
 
     @Override

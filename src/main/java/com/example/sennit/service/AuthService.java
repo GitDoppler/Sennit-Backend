@@ -4,10 +4,12 @@ import com.example.sennit.dto.request.UserSignUpRequestDTO;
 import com.example.sennit.dto.request.UserSignInRequestDTO;
 import com.example.sennit.dto.response.UserSignInResponseDTO;
 import com.example.sennit.dto.response.UserSignUpResponseDTO;
+import com.example.sennit.model.Reputation;
 import com.example.sennit.model.Role;
 import com.example.sennit.model.Session;
 import com.example.sennit.model.User;
 import com.example.sennit.repository.AuthRepository;
+import com.example.sennit.repository.RepRepository;
 import com.example.sennit.repository.RoleRepository;
 import com.example.sennit.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -24,16 +27,20 @@ public class AuthService {
     private final AuthRepository authRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final RepRepository repRepository;
     private final BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
 
-    public AuthService(AuthRepository authRepository, UserRepository userRepository, RoleRepository roleRepository) {
+    public AuthService(AuthRepository authRepository, UserRepository userRepository, RoleRepository roleRepository, RepRepository repRepository) {
         this.authRepository = authRepository;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.repRepository = repRepository;
     }
 
+    @Transactional
     public ResponseEntity<UserSignUpResponseDTO> signUp(UserSignUpRequestDTO userSignUpRequestDTO){
         try {
+            // Create a new user
             String encodedPassword = bCryptPasswordEncoder.encode(userSignUpRequestDTO.password());
             User newUser = new User();
             newUser.setUsername(userSignUpRequestDTO.username());
@@ -41,11 +48,19 @@ public class AuthService {
             newUser.setEmail(userSignUpRequestDTO.email());
             User savedUser = userRepository.save(newUser);
 
+            //Set reputation to 0
+            Reputation rep=new Reputation();
+            rep.setUserID(savedUser.getUserID());
+            rep.setReputationScore(0);
+            repRepository.save(rep);
+
+            //Set role to NORMAL
             Role newUserRole=new Role();
             newUserRole.setUserID(savedUser.getUserID());
             newUserRole.setRoleTypeID(1L); // 1 <- NORMAL role
             roleRepository.save(newUserRole);
 
+            //Create session
             Session newSession = new Session();
             newSession.setUserID(savedUser.getUserID());
             newSession.setStringID(UUID.randomUUID().toString());

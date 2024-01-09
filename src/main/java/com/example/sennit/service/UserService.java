@@ -1,12 +1,13 @@
 package com.example.sennit.service;
 
 import com.example.sennit.dto.common.PostWithVoteDTO;
-import com.example.sennit.dto.response.TopPostsResponseDTO;
 import com.example.sennit.dto.response.UserWithPostsResponseDTO;
+import com.example.sennit.model.Reputation;
 import com.example.sennit.model.Session;
 import com.example.sennit.model.User;
 import com.example.sennit.repository.AuthRepository;
 import com.example.sennit.repository.PostRepository;
+import com.example.sennit.repository.RepRepository;
 import com.example.sennit.repository.UserRepository;
 
 import org.springframework.http.HttpStatus;
@@ -25,29 +26,30 @@ public class UserService {
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final AuthRepository authRepository;
-
-    public UserService(UserRepository userRepository, PostRepository postRepository, AuthRepository authRepository) {
+    private final RepRepository repRepository;
+    public UserService(UserRepository userRepository, PostRepository postRepository, AuthRepository authRepository, RepRepository repRepository) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.authRepository = authRepository;
+        this.repRepository = repRepository;
     }
 
     public ResponseEntity<UserWithPostsResponseDTO> findUserByUsername(String sessionID,String username){
         // Verify if input is valid
         if(username==null || username.isEmpty()){
-            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","Invalid input", Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","Invalid input", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.BAD_REQUEST);
         }
 
         // Authenticate session
         Session session=authRepository.findSessionByStringID(sessionID);
         if (session == null || session.getExpirationDate().isBefore(LocalDateTime.now())) {
-            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","Session not valid",Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.UNAUTHORIZED);
+            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","Session not valid",Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.UNAUTHORIZED);
         }
 
         // Find the user given a username
         User searchedUser=userRepository.findUserByUsername(username);
         if(searchedUser==null){
-            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","User not found", Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(new UserWithPostsResponseDTO("error","User not found", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.NOT_FOUND);
         }
 
         // Get top posts with native query and map to DTO
@@ -66,7 +68,8 @@ public class UserService {
             listPosts.add(postWithVoteDTO);
         }
 
-        UserWithPostsResponseDTO userWithPostsResponseDTO=new UserWithPostsResponseDTO("success","User has been queried",Optional.of(searchedUser.getUsername()),Optional.of(searchedUser.getCreatedAt()),Optional.of(listPosts));
+        Reputation repUser=repRepository.findReputationByUserID(searchedUser.getUserID());
+        UserWithPostsResponseDTO userWithPostsResponseDTO=new UserWithPostsResponseDTO("success","User has been queried",Optional.of(searchedUser.getUsername()),Optional.of(repUser.getReputationScore()),Optional.of(searchedUser.getCreatedAt()),Optional.of(listPosts));
         return new ResponseEntity<>(userWithPostsResponseDTO,HttpStatus.OK);
     }
 }

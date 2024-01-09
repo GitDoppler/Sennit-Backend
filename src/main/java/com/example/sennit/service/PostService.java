@@ -6,17 +6,12 @@ import com.example.sennit.dto.request.DeletePostRequestDTO;
 import com.example.sennit.dto.request.EditPostRequestDTO;
 import com.example.sennit.dto.response.*;
 import com.example.sennit.dto.request.VotePostRequestDTO;
-import com.example.sennit.model.Post;
-import com.example.sennit.model.Session;
-import com.example.sennit.model.User;
-import com.example.sennit.model.Vote;
-import com.example.sennit.repository.AuthRepository;
-import com.example.sennit.repository.PostRepository;
-import com.example.sennit.repository.UserRepository;
-import com.example.sennit.repository.VoteRepository;
+import com.example.sennit.model.*;
+import com.example.sennit.repository.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -29,13 +24,15 @@ public class PostService {
     private final UserRepository userRepository;
     private final AuthRepository authRepository;
     private final VoteRepository voteRepository;
+    private final RepRepository repRepository;
     private final AuthService authService;
 
-    public PostService(PostRepository postRepository, UserRepository userRepository, AuthRepository authRepository, VoteRepository voteRepository, AuthService authService) {
+    public PostService(PostRepository postRepository, UserRepository userRepository, AuthRepository authRepository, VoteRepository voteRepository, RepRepository repRepository, AuthService authService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.authRepository = authRepository;
         this.voteRepository = voteRepository;
+        this.repRepository = repRepository;
         this.authService = authService;
     }
 
@@ -75,6 +72,7 @@ public class PostService {
         return new ResponseEntity<>(new TopPostsResponseDTO("success","Top posts have been queried",Optional.of(listPosts)),HttpStatus.OK);
     }
 
+    @Transactional
     public ResponseEntity<VotePostResponseDTO> votePost(String sessionID, VotePostRequestDTO votePostRequestDTO) {
         // Verify if input is valid
         if (sessionID == null || sessionID.isEmpty() || votePostRequestDTO == null) {
@@ -88,23 +86,44 @@ public class PostService {
                 return new ResponseEntity<>(new VotePostResponseDTO("error","Session not valid"), HttpStatus.UNAUTHORIZED);
             }
 
+            // Get the reputation of the post writer
+            Reputation rep=repRepository.findReputationByPostId(votePostRequestDTO.postID());
+
             // Check if the user has already voted
             Vote currentVote = voteRepository.findVoteByUserIDAndPostID(session.getUserID(), votePostRequestDTO.postID());
             if (currentVote == null) {
+                if(votePostRequestDTO.voteType()==0){
+                    return new ResponseEntity<>(new VotePostResponseDTO("success","Vote recorded successfully"), HttpStatus.OK);
+                }
                 currentVote = new Vote();
+                currentVote.setUserID(session.getUserID());
                 currentVote.setPostID(votePostRequestDTO.postID());
+                currentVote.setVoteType(votePostRequestDTO.voteType());
+                voteRepository.save(currentVote);
+
+                rep.setReputationScore(rep.getReputationScore() + currentVote.getVoteType());
+                repRepository.save(rep);
+
+                return new ResponseEntity<>(new VotePostResponseDTO("success","Vote recorded successfully"), HttpStatus.OK);
             }
 
-            // Update the vote type
+            if(votePostRequestDTO.voteType()==0){
+                voteRepository.delete(currentVote);
+                rep.setReputationScore(rep.getReputationScore()-currentVote.getVoteType());
+                repRepository.save(rep);
+                return new ResponseEntity<>(new VotePostResponseDTO("success","Vote retracted successfully"), HttpStatus.OK);
+            }
+
             currentVote.setVoteType(votePostRequestDTO.voteType());
             voteRepository.save(currentVote);
-
-            return new ResponseEntity<>(new VotePostResponseDTO("success","Vote has been saved"), HttpStatus.OK);
+            rep.setReputationScore(rep.getReputationScore()-(currentVote.getVoteType()-votePostRequestDTO.voteType()));
+            repRepository.save(rep);
+            return new ResponseEntity<>(new VotePostResponseDTO("success","Vote updated successfully"), HttpStatus.OK);
         } catch (Exception e) {
             // Log the exception for debugging
             // e.g., logger.error("Error while processing vote: ", e);
 
-            return new ResponseEntity<>(new VotePostResponseDTO("error","Invalid input"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new VotePostResponseDTO("error","Internal error occurred"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
