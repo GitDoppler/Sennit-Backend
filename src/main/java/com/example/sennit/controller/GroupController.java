@@ -16,8 +16,8 @@ public class GroupController {
     }
 
     @GetMapping("/api/group/search")
-    public ResponseEntity<GetGroupResponseDTO> getGroup(@RequestBody GetGroupRequestDTO getGroupRequestDTO){
-        return groupService.getGroup(getGroupRequestDTO);
+    public ResponseEntity<GetGroupResponseDTO> getGroup(@RequestHeader(name = "X-Session-ID") String sessionID,@RequestBody GetGroupRequestDTO getGroupRequestDTO){
+        return groupService.getGroup(sessionID,getGroupRequestDTO);
     }
 
     @PostMapping("/api/group/create")

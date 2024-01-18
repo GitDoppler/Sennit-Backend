@@ -11,6 +11,7 @@ import com.example.sennit.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,27 +32,38 @@ public class GroupService {
         this.authService = authService;
     }
 
-    public ResponseEntity<GetGroupResponseDTO> getGroup(GetGroupRequestDTO getGroupRequestDTO){
+    public ResponseEntity<GetGroupResponseDTO> getGroup(String sessionID,GetGroupRequestDTO getGroupRequestDTO){
         // Verify if input is valid
-        if(getGroupRequestDTO ==null){
-            return new ResponseEntity<>(new GetGroupResponseDTO("error","Invalid input", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.BAD_REQUEST);
+        if(getGroupRequestDTO==null){
+            return new ResponseEntity<>(new GetGroupResponseDTO("error","Invalid input", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.BAD_REQUEST);
+        }
+
+        // Authenticate session
+        Session session = authRepository.findSessionByStringID(sessionID);
+        if (session == null || session.getExpirationDate().isBefore(LocalDateTime.now())) {
+            return new ResponseEntity<>(new GetGroupResponseDTO("error","Session not valid", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.UNAUTHORIZED);
         }
 
         // Find subgroup by name
         Group group =groupRepository.findGroupByName(getGroupRequestDTO.name());
         if(group ==null){
-            GetGroupResponseDTO response=new GetGroupResponseDTO("error","Subgroup not found", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty());
+            GetGroupResponseDTO response=new GetGroupResponseDTO("error","Subgroup not found", Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty());
             return new ResponseEntity<>(response,HttpStatus.NOT_FOUND);
         }
 
         List<String> listMembers=new ArrayList<>();
+        boolean isMember=false;
         for(User member: group.getMembers()){
             listMembers.add(member.getUsername());
+            if(Objects.equals(member.getUserID(), session.getUserID())){
+                isMember=true;
+            }
         }
-        GetGroupResponseDTO response=new GetGroupResponseDTO("success","Subgroup has been found", Optional.of(group.getName()),Optional.of(group.getDescription()),Optional.of(group.getCreatedAt()),Optional.of(listMembers));
+        GetGroupResponseDTO response=new GetGroupResponseDTO("success","Subgroup has been found", Optional.of(group.getName()),Optional.of(group.getDescription()),Optional.of(group.getCreatedAt()),Optional.of(listMembers),Optional.of(isMember));
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    @Transactional
     public ResponseEntity<CreateGroupResponseDTO> createGroup(String sessionID,CreateGroupRequestDTO createGroupRequestDTO){
         // Verify if input is valid
         if(createGroupRequestDTO ==null){
@@ -65,6 +77,12 @@ public class GroupService {
                 return new ResponseEntity<>(new CreateGroupResponseDTO("error","Session not valid"), HttpStatus.UNAUTHORIZED);
             }
 
+            // Find user
+            User user=userRepository.findUserByUserID(session.getUserID());
+            if(user==null){
+                return new ResponseEntity<>(new CreateGroupResponseDTO("error","User can't be found"), HttpStatus.NOT_FOUND);
+            }
+
             // Check if group name already exists
             Group group= groupRepository.findGroupByName(createGroupRequestDTO.name());
             if(group!=null){
@@ -74,12 +92,17 @@ public class GroupService {
             newGroup.setName(createGroupRequestDTO.name());
             newGroup.setDescription(createGroupRequestDTO.description());
             newGroup.setOwnerID(session.getUserID());
-            groupRepository.save(newGroup);
+            Group savedGroup=groupRepository.save(newGroup);
+
+            List<Group> listGroups =user.getListGroups();
+            listGroups.add(savedGroup);
+            user.setListGroups(listGroups);
+            userRepository.save(user);
 
             return new ResponseEntity<>(new CreateGroupResponseDTO("success","Group has been created"), HttpStatus.CREATED);
         }catch(Exception e){
             // Log the exception for debugging
-            // e.g., logger.error("Error while processing vote: ", e);
+            System.out.println("Error while processing vote: "+ e);
 
             return new ResponseEntity<>(new CreateGroupResponseDTO("error","Internal error occurred"), HttpStatus.INTERNAL_SERVER_ERROR);
         }

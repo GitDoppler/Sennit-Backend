@@ -10,6 +10,7 @@ public record GetGroupResponseDTO(
         Optional<String> name,
         Optional<String> description,
         Optional<LocalDateTime> createdAt,
-        Optional<List<String>> listMembers
+        Optional<List<String>> listMembers,
+        Optional<Boolean> isMember
 ) {
 }

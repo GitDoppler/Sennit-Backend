@@ -48,4 +48,20 @@ public interface PostRepository extends JpaRepository<Post,Long> {
     List<Object[]> findPostsByUserID(@Param("searchedUserID") Long searchedUserID, @Param("currentUserID") Long currentUserID);
 
     Post findPostByPostID(Long postID);
+
+    @Query(value = "SELECT " +
+            "p.post_id, " +
+            "p.title, " +
+            "p.content, " +
+            "u.username, " +
+            "COALESCE(SUM(v.vote_type), 0) AS total_score, " +
+            "COALESCE((SELECT vote_type FROM votes WHERE user_id = :currentUserID AND post_id = p.post_id), 0) AS current_user_vote " +
+            "FROM posts p " +
+            "LEFT JOIN users u ON p.user_id = u.user_id " +
+            "LEFT JOIN votes v ON p.post_id = v.post_id " +
+            "WHERE p.post_id = :postID " +
+            "GROUP BY p.post_id, u.username",
+            nativeQuery = true)
+    List<Object[]> findPostWithVoteByPostID(@Param("postID") Long postID, @Param("currentUserID") Long currentUserID);
+
 }

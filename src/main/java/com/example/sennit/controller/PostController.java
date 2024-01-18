@@ -43,4 +43,9 @@ public class PostController {
     public ResponseEntity<EditPostResponseDTO> editPost(@RequestHeader(name="X-Session-ID") String sessionID, @Valid @RequestBody EditPostRequestDTO editPostRequestDTO){
         return postService.editPost(sessionID, editPostRequestDTO);
     }
+
+    @GetMapping("/api/posts/find/{postID}")
+    public ResponseEntity<GetPostResponseDTO> getPost(@RequestHeader(name="X-Session-ID") String sessionID, @PathVariable Long postID){
+        return postService.getPost(sessionID, postID);
+    }
 }

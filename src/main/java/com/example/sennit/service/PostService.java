@@ -226,4 +226,36 @@ public class PostService {
         }
     }
 
+    public ResponseEntity<GetPostResponseDTO> getPost(String sessionID, Long postID){
+        // Verify if input is valid
+        if (sessionID == null || sessionID.isEmpty()) {
+            return new ResponseEntity<>(new GetPostResponseDTO("error","Invalid input",Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.BAD_REQUEST);
+        }
+
+        try{
+            // Authenticate session
+            Session session = authRepository.findSessionByStringID(sessionID);
+            if (session == null || session.getExpirationDate().isBefore(LocalDateTime.now())) {
+                return new ResponseEntity<>(new GetPostResponseDTO("error", "Session not valid",Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.UNAUTHORIZED);
+            }
+
+            // Find post based on postID
+            List<Object[]> postWrap=postRepository.findPostWithVoteByPostID(postID, session.getUserID());
+            Object[] post=postWrap.get(0);
+            for(int i=0;i<post.length;i++){
+                System.out.println(post[i]);
+            }
+            if(post==null){
+                return new ResponseEntity<>(new GetPostResponseDTO("error","Post can't be found",Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()),HttpStatus.NOT_FOUND);
+            }
+            return new ResponseEntity<>(new GetPostResponseDTO("success", "Post has been found",Optional.of((Long)post[0]),Optional.of((String)post[1]),Optional.of((String)post[2]),Optional.of((String)post[3]),Optional.of((Long)post[4]),Optional.of((Integer)post[5])), HttpStatus.OK);
+        }catch(Exception e){
+            // Log the exception for debugging
+            System.out.println(e);
+
+            return new ResponseEntity<>(new GetPostResponseDTO("error", "Internal error occurred",Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 }
